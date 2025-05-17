@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from pandas.tseries.frequencies import to_offset
 
-from accelerometer_mvpa import accel_utils, classification, circadian
+from accelerometer_mvpa import accel_utils, ml_models, accel_circadian_metrics
 
 
 def getActivitySummary(
