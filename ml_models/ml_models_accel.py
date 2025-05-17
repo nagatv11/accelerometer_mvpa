@@ -224,10 +224,6 @@ def train_activity_classification_model(
             participant_column, output_dir
         )
 
-    # Optionally perform cross-validation on
-```
-
-
 all data
 if cross\_validation\_folds:
 \_perform\_cross\_validation(
@@ -561,3 +557,64 @@ for participant in participants:
 
     f1 = f1_score(y_true, y_pred, average='macro')
     report_str = classification_report
+    reports.append((participant, f1, report_str))
+
+        # Save report file
+        report_file = os.path.join(output_dir, f"{participant}_classification_report.txt")
+        with open(report_file, "w") as f:
+            f.write(report_str)
+
+def _perform_cross_validation(
+    create_classifier,
+    data: pd.DataFrame,
+    feature_columns: List[str],
+    label_column: str,
+    participant_column: str,
+    folds: int,
+    n_jobs: int,
+    output_dir: str
+) -> None:
+    """
+    Perform participant-wise cross-validation training and evaluation.
+
+    Args:
+        create_classifier (callable): Function returning a fresh classifier instance.
+        data (pd.DataFrame): Full dataset.
+        feature_columns (List[str]): Feature column names.
+        label_column (str): Label column name.
+        participant_column (str): Participant ID column.
+        folds (int): Number of cross-validation folds.
+        n_jobs (int): Number of parallel jobs.
+        output_dir (str): Output directory for reports.
+
+    Returns:
+        None
+    """
+    participants = data[participant_column].unique()
+    np.random.shuffle(participants)
+
+    fold_size = len(participants) // folds
+    fold_indices = [participants[i * fold_size:(i + 1) * fold_size] for i in range(folds)]
+
+    for i, test_participants in enumerate(fold_indices):
+        train_participants = np.setdiff1d(participants, test_participants)
+        train_data = data[data[participant_column].isin(train_participants)]
+        test_data = data[data[participant_column].isin(test_participants)]
+
+        clf = create_classifier()
+        clf.fit(train_data[feature_columns], train_data[label_column])
+
+        y_train_pred = clf.predict(train_data[feature_columns])
+        hmm_params = train_hmm_parameters(
+            y_proba=None,
+            y_true=train_data[label_column].to_numpy(),
+            labels=np.unique(train_data[label_column]),
+            uniform_prior=True
+        )
+
+        _evaluate_model_on_test_data(
+            clf, hmm_params, test_data,
+            feature_columns, label_column, participant_column, output_dir
+        )
+
+        print(f"Fold {i+1}/{folds} completed.")
